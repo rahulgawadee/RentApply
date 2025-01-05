@@ -1,21 +1,29 @@
 import React, { useState } from "react";
 import "./MultiStepForm.css"; // Add your custom CSS for styling
 import { FaHome, FaUsers, FaBriefcase, FaWallet, FaAddressBook, FaCommentDots } from "react-icons/fa";
+import InputMask from "react-input-mask";
+import { useEffect } from 'react';
+import Select from 'react-select';
+
 
 const MultiStepForm = () => {
   const [currentStep, setCurrentStep] = useState(0);
 
   const [formData, setFormData] = useState({
     step1: {
-      propertyAddress: "",
-      firstName: "",
-      middleName: "",
-      lastName: "",
-      birthDate: "",
-      socialSecurity: "",
-      emailAddress: "",
-      phoneNumber: "",
-      driversLicense: "",
+      propertyAddress: "",               // Full property address (Street, City, State, ZIP code)
+      streetAddressAbbreviation: "",     // Optional: street address abbreviation (e.g., Ave NW, Blvd)
+      city: "",                          // City of the property
+      state: "",                         // State of the property (e.g., DC, CA)
+      zipCode: "",                       // ZIP code of the property
+      firstName: "",                     // Tenant's first name
+      middleName: "",                    // Tenant's middle name (optional)
+      lastName: "",                      // Tenant's last name
+      birthDate: "",                     // Tenant's birth date
+      socialSecurity: "",                // Tenant's social security number
+      emailAddress: "",                  // Tenant's email address
+      phoneNumber: "",                   // Tenant's phone number
+      driversLicense: "",                // Tenant's driver's license number
     },
     step2: {
       occupants: [
@@ -57,8 +65,64 @@ const MultiStepForm = () => {
     },
     step6: {
       comments: "",
-    },
+      moveReason: "",              // Store the reason for moving
+      creditCheckComments: "",     // Store comments regarding credit/background check
+    }
+    
   });
+
+
+
+
+//start date and end date Step 2 :
+const handleStartDateChange = (e) => {
+  const newStartDate = e.target.value;
+  updateFormData("step2", e.target.name, newStartDate);
+
+  // Set the minimum end date to be one day after the start date
+  const minEndDate = new Date(newStartDate);
+  minEndDate.setDate(minEndDate.getDate() + 1);
+
+  // Update the minimum end date for validation
+  const formattedMinEndDate = minEndDate.toISOString().split("T")[0]; // Format as YYYY-MM-DD
+  setFormData((prev) => ({
+    ...prev,
+    step2: {
+      ...prev.step2,
+      minEndDate: formattedMinEndDate, // Store the minimum end date in the state
+    },
+  }));
+
+  // Validate end date immediately after start date is selected
+  const validationErrors = validateDates(newStartDate, formData.step2.endDate);
+  setErrors(validationErrors);
+};
+
+const handleEndDateChange = (e) => {
+  const newEndDate = e.target.value;
+  updateFormData("step2", e.target.name, newEndDate);
+
+  // Validate the end date after it's changed
+  const validationErrors = validateDates(formData.step2.startDate, newEndDate);
+  setErrors(validationErrors);
+};
+
+const validateDates = (startDate, endDate) => {
+  const newErrors = {};
+
+  if (startDate && endDate) {
+    // Check if the end date is greater than the start date
+    if (new Date(startDate) >= new Date(endDate)) {
+      newErrors.endDate = "End Date must be greater than Start Date.";
+    } else {
+      newErrors.endDate = ""; // If validation passes, clear any existing error
+    }
+  }
+
+  return newErrors;
+};
+
+
 
   // below for step 2
   const updateFormData = (section, field, value) => {
@@ -258,68 +322,137 @@ const MultiStepForm = () => {
 
   const [errors, setErrors] = useState({});
 
-  const validate = () => {
+ const validate = () => {
     const newErrors = {};
     const { step1 } = formData;
-
+  
+    // Validate required fields
     if (!step1.propertyAddress.trim()) {
       newErrors.propertyAddress = "Property Address is required.";
     }
+    if (!step1.city.trim()) {
+      newErrors.city = "City is required.";
+    }
+    if (!step1.state.trim()) {
+      newErrors.state = "State is required.";
+    }
+    if (!step1.zipCode.trim()) {
+      newErrors.zipCode = "ZIP Code is required.";
+    } else if (!/^\d{5}$/.test(step1.zipCode)) { // Validate ZIP Code format (5 digits)
+      newErrors.zipCode = "Invalid ZIP Code format.";
+    }
+  
+    // Optionally validate Street Address Abbreviation if it's provided
+    if (step1.streetAddressAbbreviation && !/^[A-Za-z\s.]+$/.test(step1.streetAddressAbbreviation)) {
+      newErrors.streetAddressAbbreviation = "Invalid Street Address Abbreviation format.";
+    }
+  
     if (!step1.firstName.trim()) {
       newErrors.firstName = "First Name is required.";
     }
     if (!step1.lastName.trim()) {
       newErrors.lastName = "Last Name is required.";
     }
+  
+    // Validate Birth Date (required and format: YYYY-MM-DD)
     if (!step1.birthDate.trim()) {
       newErrors.birthDate = "Birth Date is required.";
+    } else if (!/^\d{4}-\d{2}-\d{2}$/.test(step1.birthDate)) {
+      newErrors.birthDate = "Invalid Birth Date format. Use YYYY-MM-DD.";
+    } else {
+      const today = new Date();
+      const enteredDate = new Date(step1.birthDate);
+  
+      if (enteredDate > today) {
+        newErrors.birthDate = "Birth Date cannot be in the future.";
+      }
     }
+  
+    // Validate and Mask Social Security Number
+    const ssnRegex = /^\d{3}-\d{2}-\d{4}$/;
     if (!step1.socialSecurity.trim()) {
       newErrors.socialSecurity = "Social Security is required.";
+    } else if (!ssnRegex.test(step1.socialSecurity)) {
+      newErrors.socialSecurity = "Invalid Social Security Number format. Use XXX-XX-XXXX.";
+    } else {
+      // Mask SSN for display purposes
+      const maskedSSN = `XXX-XX-${step1.socialSecurity.slice(-4)}`;
+      setFormData((prev) => ({
+        ...prev,
+        step1: { ...prev.step1, socialSecurity: maskedSSN },
+      }));
     }
+  
     if (!step1.emailAddress.trim()) {
       newErrors.emailAddress = "Email Address is required.";
     } else if (!/\S+@\S+\.\S+/.test(step1.emailAddress)) {
       newErrors.emailAddress = "Invalid Email Address.";
     }
+  
+    // Validate Phone Number
+    const flexiblePhoneRegex = /^(\+1\s?)?(\(?\d{3}\)?[\s.-]?)?\d{3}[\s.-]?\d{4}$/;
     if (!step1.phoneNumber.trim()) {
       newErrors.phoneNumber = "Phone Number is required.";
+    } else if (!flexiblePhoneRegex.test(step1.phoneNumber)) {
+      newErrors.phoneNumber = "Invalid phone number. Use formats like (123) 456-7890, 123-456-7890, or +1 123 456 7890.";
     }
+  
     if (!step1.driversLicense.trim()) {
       newErrors.driversLicense = "Driver's License is required.";
     }
-
+  
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
+
+  
+  
 
   const validateCase1 = () => {
     const newErrors = {};
     const { step2 } = formData;
-
+  
     step2.occupants.forEach((occupant, index) => {
+      // Validate First Name
       if (!occupant.name.trim()) {
         newErrors[`occupantName-${index}`] = "First Name is required.";
       }
+  
+      // Validate Last Name
       if (!occupant.lastName.trim()) {
         newErrors[`occupantLastName-${index}`] = "Last Name is required.";
       }
+  
+      // Validate Date of Birth (DOB)
       if (!occupant.dob.trim()) {
         newErrors[`occupantDob-${index}`] = "Date of Birth is required.";
+      } else if (!/^\d{4}-\d{2}-\d{2}$/.test(occupant.dob)) {
+        newErrors[`occupantDob-${index}`] = "Invalid Date of Birth format. Use YYYY-MM-DD.";
+      } else {
+        const today = new Date();
+        const enteredDob = new Date(occupant.dob);
+  
+        // Check if the entered DOB is not in the future
+        if (enteredDob > today) {
+          newErrors[`occupantDob-${index}`] = "Date of Birth cannot be in the future.";
+        }
       }
+  
+      // Validate Relationship
       if (!occupant.relationship.trim()) {
         newErrors[`occupantRelationship-${index}`] = "Relationship is required.";
       }
     });
-
+  
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
+  
 
   const validateCase2 = () => {
     const newErrors = {};
     const { step3 } = formData;
-
+  
     step3.employers.forEach((employer, index) => {
       if (!employer.employerName.trim()) {
         newErrors[`employerName-${index}`] = "Employer Name is required.";
@@ -332,21 +465,28 @@ const MultiStepForm = () => {
       }
       if (!employer.employerPhone.trim()) {
         newErrors[`employerPhone-${index}`] = "Employer Phone is required.";
+      } else if (!/^\d{10}$/.test(employer.employerPhone.replace(/\D/g, ''))) {
+        // Remove non-digit characters to validate only digits
+        newErrors[`employerPhone-${index}`] = "Employer Phone should be a 10-digit number.";
       }
+      
       if (!employer.startDate.trim()) {
         newErrors[`startDate-${index}`] = "Start Date is required.";
       }
       if (!employer.monthlyPay.trim()) {
         newErrors[`monthlyPay-${index}`] = "Monthly Pay is required.";
+      } else if (parseFloat(employer.monthlyPay) < 0) {
+        newErrors[`monthlyPay-${index}`] = "Monthly Pay cannot be negative.";
       }
       if (!employer.supervisorName.trim()) {
         newErrors[`supervisorName-${index}`] = "Supervisor's Name is required.";
       }
     });
-
+  
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
+  
 
   const validateCase3 = () => {
     const newErrors = {};
@@ -354,17 +494,18 @@ const MultiStepForm = () => {
       if (!detail.type.trim()) {
         newErrors[`type-${index}`] = "Financial Type is required.";
       }
-      if (!detail.bank.trim()) {
-        newErrors[`bank-${index}`] = "Bank/Institution is required.";
+      if (!detail.bank.trim() || !/^[A-Za-z\s]+$/.test(detail.bank)) {
+        newErrors[`bank-${index}`] = "Bank/Institution is required and should only contain letters.";
       }
       if (!detail.balance || isNaN(detail.balance) || detail.balance <= 0) {
         newErrors[`balance-${index}`] = "Valid Balance is required.";
       }
     });
-
+  
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
+  
 
   const validateCase4 = () => {
     const newErrors = {};
@@ -400,6 +541,29 @@ const MultiStepForm = () => {
     return Object.keys(newErrors).length === 0;
   };
   
+  
+  
+//comment change :
+const handleMoveReasonChange = (value) => {
+  setFormData({
+    ...formData,
+    step6: {
+      ...formData.step6,
+      moveReason: value,
+    },
+  });
+};
+
+const handleCreditCheckCommentsChange = (value) => {
+  setFormData({
+    ...formData,
+    step6: {
+      ...formData.step6,
+      creditCheckComments: value,
+    },
+  });
+};
+
 
   
   const handleSubmit = async (e) => {
@@ -431,7 +595,66 @@ const MultiStepForm = () => {
       alert("Error submitting form. Please try again.");
     }
   };
+
+  // states :
   
+const states = [
+  { code: "AL", name: "Alabama" },
+  { code: "AK", name: "Alaska" },
+  { code: "AZ", name: "Arizona" },
+  { code: "AR", name: "Arkansas" },
+  { code: "CA", name: "California" },
+  { code: "CO", name: "Colorado" },
+  { code: "CT", name: "Connecticut" },
+  { code: "DE", name: "Delaware" },
+  { code: "FL", name: "Florida" },
+  { code: "GA", name: "Georgia" },
+  { code: "HI", name: "Hawaii" },
+  { code: "ID", name: "Idaho" },
+  { code: "IL", name: "Illinois" },
+  { code: "IN", name: "Indiana" },
+  { code: "IA", name: "Iowa" },
+  { code: "KS", name: "Kansas" },
+  { code: "KY", name: "Kentucky" },
+  { code: "LA", name: "Louisiana" },
+  { code: "ME", name: "Maine" },
+  { code: "MD", name: "Maryland" },
+  { code: "MA", name: "Massachusetts" },
+  { code: "MI", name: "Michigan" },
+  { code: "MN", name: "Minnesota" },
+  { code: "MS", name: "Mississippi" },
+  { code: "MO", name: "Missouri" },
+  { code: "MT", name: "Montana" },
+  { code: "NE", name: "Nebraska" },
+  { code: "NV", name: "Nevada" },
+  { code: "NH", name: "New Hampshire" },
+  { code: "NJ", name: "New Jersey" },
+  { code: "NM", name: "New Mexico" },
+  { code: "NY", name: "New York" },
+  { code: "NC", name: "North Carolina" },
+  { code: "ND", name: "North Dakota" },
+  { code: "OH", name: "Ohio" },
+  { code: "OK", name: "Oklahoma" },
+  { code: "OR", name: "Oregon" },
+  { code: "PA", name: "Pennsylvania" },
+  { code: "RI", name: "Rhode Island" },
+  { code: "SC", name: "South Carolina" },
+  { code: "SD", name: "South Dakota" },
+  { code: "TN", name: "Tennessee" },
+  { code: "TX", name: "Texas" },
+  { code: "UT", name: "Utah" },
+  { code: "VT", name: "Vermont" },
+  { code: "VA", name: "Virginia" },
+  { code: "WA", name: "Washington" },
+  { code: "WV", name: "West Virginia" },
+  { code: "WI", name: "Wisconsin" },
+  { code: "WY", name: "Wyoming" }
+];
+
+const stateOptions = states.map((state) => ({
+  value: state.code,
+  label: state.name
+}));
   
   
   const steps = [
@@ -454,33 +677,11 @@ const MultiStepForm = () => {
       case 0:
         return (
           <div className="form-content-property-info">
-  <h2 className="form-title-property-info">Property & Personal Information</h2>
+  <h2 className="form-title-property-info">Personal Information</h2>
 
   <div className="form-row">
-    {/* Property Address */}
-    <label htmlFor="propertyAddress" className="form-label">
-      Property Address You Are Applying For <span className="required">*</span>
-    </label>
-    <input
-      type="text"
-      id="propertyAddress"
-      name="propertyAddress"
-      placeholder="Enter property address"
-      className="form-input full-width"
-      value={formData.step1.propertyAddress}
-      onChange={(e) =>
-        setFormData((prev) => ({
-          ...prev,
-          step1: { ...prev.step1, propertyAddress: e.target.value },
-        }))
-      }
-    />
-    {errors.propertyAddress && <span className="error-message">{errors.propertyAddress}</span>}
-  </div>
-
-  <div className="form-row">
-    {/* First Name */}
-    <div className="form-group">
+    {/* Personal Information Section */}
+    <div className="form-group w-full sm:w-1/2 md:w-1/3">
       <label htmlFor="firstName" className="form-label">
         First Name <span className="required">*</span>
       </label>
@@ -500,8 +701,9 @@ const MultiStepForm = () => {
       />
       {errors.firstName && <span className="error-message">{errors.firstName}</span>}
     </div>
+
     {/* Middle Name */}
-    <div className="form-group">
+    <div className="form-group w-full sm:w-1/2 md:w-1/3">
       <label htmlFor="middleName" className="form-label">
         Middle Name
       </label>
@@ -520,8 +722,9 @@ const MultiStepForm = () => {
         }
       />
     </div>
+
     {/* Last Name */}
-    <div className="form-group">
+    <div className="form-group w-full sm:w-1/2 md:w-1/3">
       <label htmlFor="lastName" className="form-label">
         Last Name <span className="required">*</span>
       </label>
@@ -545,7 +748,7 @@ const MultiStepForm = () => {
 
   <div className="form-row">
     {/* Birth Date */}
-    <div className="form-group">
+    <div className="form-group w-full sm:w-1/2 md:w-1/3">
       <label htmlFor="birthDate" className="form-label">
         Birth Date <span className="required">*</span>
       </label>
@@ -566,7 +769,7 @@ const MultiStepForm = () => {
     </div>
 
     {/* Social Security */}
-    <div className="form-group">
+    <div className="form-group w-full sm:w-1/2 md:w-1/3">
       <label htmlFor="socialSecurity" className="form-label">
         Social Security # <span className="required">*</span>
       </label>
@@ -588,7 +791,7 @@ const MultiStepForm = () => {
     </div>
 
     {/* Email */}
-    <div className="form-group">
+    <div className="form-group w-full sm:w-1/2 md:w-1/3">
       <label htmlFor="emailAddress" className="form-label">
         Email Address <span className="required">*</span>
       </label>
@@ -612,29 +815,43 @@ const MultiStepForm = () => {
 
   <div className="form-row">
     {/* Phone Number */}
-    <div className="form-group">
-      <label htmlFor="phoneNumber" className="form-label">
-        Phone Number <span className="required">*</span>
-      </label>
+   
+
+<div className="form-group w-full sm:w-1/2 md:w-1/3">
+  <label htmlFor="phoneNumber" className="form-label">
+    Phone Number <span className="required">*</span>
+  </label>
+  <InputMask
+    mask="(999) 999-9999"
+    maskChar={null}
+    value={formData.step1.phoneNumber || ""}
+    onChange={(e) =>
+      setFormData((prev) => ({
+        ...prev,
+        step1: { ...prev.step1, phoneNumber: e.target.value },
+      }))
+    }
+  >
+    {(inputProps) => (
       <input
+        {...inputProps}
         type="tel"
         id="phoneNumber"
         name="phoneNumber"
-        placeholder="Enter phone number"
         className="form-input"
-        value={formData.step1.phoneNumber || ""}
-        onChange={(e) =>
-          setFormData((prev) => ({
-            ...prev,
-            step1: { ...prev.step1, phoneNumber: e.target.value },
-          }))
-        }
+        placeholder="(123) 456-7890"
       />
-      {errors.phoneNumber && <span className="error-message">{errors.phoneNumber}</span>}
-    </div>
+    )}
+  </InputMask>
+  {errors.phoneNumber && (
+    <span className="error-message text-red-500">{errors.phoneNumber}</span>
+  )}
+</div>
+
+
 
     {/* Driver's License */}
-    <div className="form-group">
+    <div className="form-group w-full sm:w-1/2 md:w-1/3">
       <label htmlFor="driversLicense" className="form-label">
         Driver's License # <span className="required">*</span>
       </label>
@@ -655,6 +872,128 @@ const MultiStepForm = () => {
       {errors.driversLicense && <span className="error-message">{errors.driversLicense}</span>}
     </div>
   </div>
+  <h2 className="form-title-property-info">Address Information</h2>
+  <div className="form-row">
+  {/* Property Address */}
+  <div className="form-group w-full sm:w-1/2 md:w-1/3">
+    <label htmlFor="propertyAddress" className="form-label">
+      Property Address You Are Applying For <span className="required">*</span>
+    </label>
+    <input
+      type="text"
+      id="propertyAddress"
+      name="propertyAddress"
+      placeholder="Enter property address (e.g. 1600 Pennsylvania Ave NW)"
+      className="form-input"
+      value={formData.step1.propertyAddress}
+      onChange={(e) =>
+        setFormData((prev) => ({
+          ...prev,
+          step1: { ...prev.step1, propertyAddress: e.target.value },
+        }))
+      }
+    />
+    {errors.propertyAddress && <span className="error-message">{errors.propertyAddress}</span>}
+  </div>
+</div>
+
+<div className="form-row">
+  {/* Street Address Abbreviation */}
+  <div className="form-group w-full sm:w-1/2 md:w-1/3">
+    <label htmlFor="streetAddressAbbreviation" className="form-label">
+      Street Address Abbreviation (optional)
+    </label>
+    <input
+      type="text"
+      id="streetAddressAbbreviation"
+      name="streetAddressAbbreviation"
+      placeholder="Optional: Ave NW, St, Blvd"
+      className="form-input"
+      value={formData.step1.streetAddressAbbreviation}
+      onChange={(e) =>
+        setFormData((prev) => ({
+          ...prev,
+          step1: { ...prev.step1, streetAddressAbbreviation: e.target.value },
+        }))
+      }
+    />
+    {errors.streetAddressAbbreviation && (
+      <span className="error-message">{errors.streetAddressAbbreviation}</span>
+    )}
+  </div>
+</div>
+
+<div className="form-row">
+  {/* City */}
+  <div className="form-group w-full sm:w-1/2 md:w-1/3">
+    <label htmlFor="city" className="form-label">
+      City <span className="required">*</span>
+    </label>
+    <input
+      type="text"
+      id="city"
+      name="city"
+      placeholder="Enter city (e.g. Washington)"
+      className="form-input"
+      value={formData.step1.city}
+      onChange={(e) =>
+        setFormData((prev) => ({
+          ...prev,
+          step1: { ...prev.step1, city: e.target.value },
+        }))
+      }
+    />
+    {errors.city && <span className="error-message">{errors.city}</span>}
+  </div>
+</div>
+
+<div className="form-row">
+  {/* State */}
+  <div className="form-group w-full sm:w-1/2 md:w-1/3">
+    <label htmlFor="state" className="form-label">
+      State <span className="required">*</span>
+    </label>
+    <Select
+      id="state"
+      name="state"
+      options={stateOptions}
+      value={stateOptions.find(option => option.value === formData.step1.state)}
+      onChange={(selectedOption) => {
+        setFormData(prev => ({
+          ...prev,
+          step1: { ...prev.step1, state: selectedOption.value },
+        }));
+      }}
+      className="react-select-container"
+      classNamePrefix="react-select"
+    />
+    {errors.state && <span className="error-message">{errors.state}</span>}
+  </div>
+</div>
+
+<div className="form-row">
+  {/* ZIP Code */}
+  <div className="form-group w-full sm:w-1/2 md:w-1/3">
+    <label htmlFor="zipCode" className="form-label">
+      ZIP Code <span className="required">*</span>
+    </label>
+    <input
+      type="text"
+      id="zipCode"
+      name="zipCode"
+      placeholder="Enter ZIP code (e.g. 20500)"
+      className="form-input"
+      value={formData.step1.zipCode}
+      onChange={(e) =>
+        setFormData((prev) => ({
+          ...prev,
+          step1: { ...prev.step1, zipCode: e.target.value },
+        }))
+      }
+    />
+    {errors.zipCode && <span className="error-message">{errors.zipCode}</span>}
+  </div>
+</div>
 </div>
 
         );
@@ -761,27 +1100,29 @@ const MultiStepForm = () => {
               {errors.monthlyRent && <span className="error-message">{errors.monthlyRent}</span>}
             </label>
             <label className="form-label">
-              Start Date of Residency
-              <input
-                type="date"
-                name="startDate"
-                value={formData.step2.startDate}
-                onChange={(e) => updateFormData("step2", e.target.name, e.target.value)}
-                className={`form-input ${errors.startDate ? 'input-error' : ''}`}
-              />
-              {errors.startDate && <span className="error-message">{errors.startDate}</span>}
-            </label>
-            <label className="form-label">
-              End Date of Residency
-              <input
-                type="date"
-                name="endDate"
-                value={formData.step2.endDate}
-                onChange={(e) => updateFormData("step2", e.target.name, e.target.value)}
-                className={`form-input ${errors.endDate ? 'input-error' : ''}`}
-              />
-              {errors.endDate && <span className="error-message">{errors.endDate}</span>}
-            </label>
+  Start Date of Residency
+  <input
+    type="date"
+    name="startDate"
+    value={formData.step2.startDate}
+    onChange={handleStartDateChange}
+    className={`form-input ${errors.startDate ? 'input-error' : ''}`}
+  />
+  {errors.startDate && <span className="error-message">{errors.startDate}</span>}
+</label>
+
+<label className="form-label">
+  End Date of Residency
+  <input
+    type="date"
+    name="endDate"
+    value={formData.step2.endDate}
+    onChange={handleEndDateChange}
+    min={formData.step2.minEndDate || ""}
+    className={`form-input ${errors.endDate ? 'input-error' : ''}`}
+  />
+  {errors.endDate && <span className="error-message">{errors.endDate}</span>}
+</label>
           </div>
         
           {/* Reason for Moving */}
@@ -813,18 +1154,23 @@ const MultiStepForm = () => {
               />
               {errors.ownerManagerName && <span className="error-message">{errors.ownerManagerName}</span>}
             </label>
-            <label className="form-label">
-              Phone Number
-              <input
-                type="tel"
-                name="ownerManagerPhone"
-                placeholder="Enter phone number"
-                value={formData.step2.ownerManagerPhone}
-                onChange={(e) => updateFormData("step2", e.target.name, e.target.value)}
-                className={`form-input ${errors.ownerManagerPhone ? 'input-error' : ''}`}
-              />
-              {errors.ownerManagerPhone && <span className="error-message">{errors.ownerManagerPhone}</span>}
-            </label>
+     
+     
+
+<label className="form-label">
+  Phone Number
+  <InputMask
+    mask="(999) 999-9999" // Input mask pattern
+    maskChar={null}
+    name="ownerManagerPhone"
+    placeholder="(123) 456 7890" // Placeholder with the format
+    value={formData.step2.ownerManagerPhone}
+    onChange={(e) => updateFormData("step2", e.target.name, e.target.value)}
+    className={`form-input ${errors.ownerManagerPhone ? 'input-error' : ''}`}
+  />
+  
+</label>
+
           </div>
         </div>
         
@@ -872,17 +1218,21 @@ const MultiStepForm = () => {
       </div>
 
       <div className="form-row">
-        <label className="form-label">
-          Employer Phone<span className="required">*</span>
-          <input
-            type="tel"
-            placeholder="Enter employer phone"
-            value={employer.employerPhone}
-            onChange={(e) => handleEmployerChange(index, "employerPhone", e.target.value)}
-            className="form-input"
-          />
-          {errors[`employerPhone-${index}`] && <span className="error">{errors[`employerPhone-${index}`]}</span>}
-        </label>
+    
+
+<label className="form-label">
+  Employer Phone<span className="required">*</span>
+  <InputMask
+    mask="(999) 999-9999"  // Define the phone number format
+    maskChar={null}
+    value={employer.employerPhone}
+    onChange={(e) => handleEmployerChange(index, "employerPhone", e.target.value)}
+    className={`form-input ${errors[`employerPhone-${index}`] ? 'input-error' : ''}`}
+    placeholder="Enter employer phone"
+  />
+  {errors[`employerPhone-${index}`] && <span className="error">{errors[`employerPhone-${index}`]}</span>}
+</label>
+
         <label className="form-label">
           Start Date of Employment<span className="required">*</span>
           <input
@@ -938,93 +1288,137 @@ const MultiStepForm = () => {
       case 3:
         return (
           <div className="form-content-financial-info">
-  <h2 className="form-title-financial-info">Financial Information</h2>
-  {formData.step4.financialDetails.map((detail, index) => (
-    <div key={index} className="financial-detail-row">
-      {/* Financial Type */}
-      <div className="form-group">
-        <label htmlFor={`type-${index}`} className="form-label">
-          Financial Type<span className="required">*</span>
-        </label>
-        <select
-          id={`type-${index}`}
-          name={`type-${index}`}
-          value={detail.type}
-          onChange={(e) => handleDetailChange(index, "type", e.target.value)}
-          className={`form-input ${errors[`type-${index}`] ? "input-error" : ""}`}
-        >
-          <option value="">Select Financial Type</option>
-          <option value="Checking Account">Checking Account</option>
-          <option value="Savings Account">Savings Account</option>
-          <option value="Credit Card">Credit Card</option>
-          <option value="Auto Loan">Auto Loan</option>
-          <option value="Additional Debt">Additional Debt</option>
-        </select>
-        {errors[`type-${index}`] && (
-          <span className="error-message">{errors[`type-${index}`]}</span>
-        )}
-      </div>
-
-      {/* Bank/Institution */}
-      <div className="form-group">
-        <label htmlFor={`bank-${index}`} className="form-label">
-          Bank / Institution<span className="required">*</span>
-        </label>
-        <input
-          type="text"
-          id={`bank-${index}`}
-          name={`bank-${index}`}
-          placeholder="Enter bank/institution"
-          value={detail.bank}
-          onChange={(e) => handleDetailChange(index, "bank", e.target.value)}
-          className={`form-input ${errors[`bank-${index}`] ? "input-error" : ""}`}
-        />
-        {errors[`bank-${index}`] && (
-          <span className="error-message">{errors[`bank-${index}`]}</span>
-        )}
-      </div>
-
-      {/* Balance */}
-      <div className="form-group">
-        <label htmlFor={`balance-${index}`} className="form-label">
-          Balance<span className="required">*</span>
-        </label>
-        <input
-          type="number"
-          id={`balance-${index}`}
-          name={`balance-${index}`}
-          placeholder="Enter balance"
-          value={detail.balance}
-          onChange={(e) => handleDetailChange(index, "balance", e.target.value)}
-          className={`form-input ${errors[`balance-${index}`] ? "input-error" : ""}`}
-        />
-        {errors[`balance-${index}`] && (
-          <span className="error-message">{errors[`balance-${index}`]}</span>
-        )}
-      </div>
-
-      {/* Remove Button */}
-      {formData.step4.financialDetails.length > 1 && (
-        <button
-          type="button"
-          onClick={() => removeFinancialDetail(index)}
-          className="form-remove-btn"
-        >
-          Remove
-        </button>
-      )}
-    </div>
-  ))}
-
-  {/* Add Financial Detail Button */}
-  <button type="button" onClick={addFinancialDetail} className="form-add-btn">
-    Add Financial Detail
-  </button>
-</div>
+          <h2 className="form-title-financial-info">Financial Information</h2>
+          {formData.step4.financialDetails.map((detail, index) => (
+            <div key={index} className="financial-detail-row">
+              {/* Financial Type */}
+              <div className="form-group">
+                <label htmlFor={`type-${index}`} className="form-label">
+                  Financial Type<span className="required">*</span>
+                </label>
+                <select
+                  id={`type-${index}`}
+                  name={`type-${index}`}
+                  value={detail.type}
+                  onChange={(e) => handleDetailChange(index, "type", e.target.value)}
+                  className={`form-input ${errors[`type-${index}`] ? "input-error" : ""}`}
+                >
+                  <option value="">Select Financial Type</option>
+                  <option value="Checking Account">Checking Account</option>
+                  <option value="Savings Account">Savings Account</option>
+                  <option value="Credit Card">Credit Card</option>
+                  <option value="Auto Loan">Auto Loan</option>
+                  <option value="Additional Debt">Additional Debt</option>
+                </select>
+                {errors[`type-${index}`] && (
+                  <span className="error-message">{errors[`type-${index}`]}</span>
+                )}
+              </div>
+        
+              {/* Bank/Institution */}
+              <div className="form-group">
+                <label htmlFor={`bank-${index}`} className="form-label">
+                  Bank / Institution<span className="required">*</span>
+                </label>
+                <input
+                  type="text"
+                  id={`bank-${index}`}
+                  name={`bank-${index}`}
+                  placeholder="Enter bank/institution"
+                  value={detail.bank}
+                  onChange={(e) => handleDetailChange(index, "bank", e.target.value)}
+                  className={`form-input ${errors[`bank-${index}`] ? "input-error" : ""}`}
+                />
+                {errors[`bank-${index}`] && (
+                  <span className="error-message">{errors[`bank-${index}`]}</span>
+                )}
+              </div>
+        
+              {/* Balance */}
+              <div className="form-group">
+                <label htmlFor={`balance-${index}`} className="form-label">
+                  Balance<span className="required">*</span>
+                </label>
+                <input
+                  type="number"
+                  id={`balance-${index}`}
+                  name={`balance-${index}`}
+                  placeholder="Enter balance"
+                  value={detail.balance}
+                  onChange={(e) => handleDetailChange(index, "balance", e.target.value)}
+                  className={`form-input ${errors[`balance-${index}`] ? "input-error" : ""}`}
+                />
+                {errors[`balance-${index}`] && (
+                  <span className="error-message">{errors[`balance-${index}`]}</span>
+                )}
+              </div>
+        
+              {/* Credit Card Fields (conditionally rendered) */}
+              {detail.type === "Credit Card" && (
+                <div className="form-group">
+                  <label htmlFor={`creditCardNumber-${index}`} className="form-label">
+                    Credit Card Number<span className="required">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    id={`creditCardNumber-${index}`}
+                    name={`creditCardNumber-${index}`}
+                    placeholder="Enter credit card number"
+                    value={detail.creditCardNumber}
+                    onChange={(e) => handleDetailChange(index, "creditCardNumber", e.target.value)}
+                    className={`form-input ${errors[`creditCardNumber-${index}`] ? "input-error" : ""}`}
+                  />
+                  {errors[`creditCardNumber-${index}`] && (
+                    <span className="error-message">{errors[`creditCardNumber-${index}`]}</span>
+                  )}
+                </div>
+              )}
+        
+              {/* Auto Loan Fields (conditionally rendered) */}
+              {detail.type === "Auto Loan" && (
+                <div className="form-group">
+                  <label htmlFor={`loanAmount-${index}`} className="form-label">
+                    Loan Amount<span className="required">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    id={`loanAmount-${index}`}
+                    name={`loanAmount-${index}`}
+                    placeholder="Enter loan amount"
+                    value={detail.loanAmount}
+                    onChange={(e) => handleDetailChange(index, "loanAmount", e.target.value)}
+                    className={`form-input ${errors[`loanAmount-${index}`] ? "input-error" : ""}`}
+                  />
+                  {errors[`loanAmount-${index}`] && (
+                    <span className="error-message">{errors[`loanAmount-${index}`]}</span>
+                  )}
+                </div>
+              )}
+        
+              {/* Remove Button */}
+              {formData.step4.financialDetails.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => removeFinancialDetail(index)}
+                  className="form-remove-btn"
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+          ))}
+        
+          {/* Add Financial Detail Button */}
+          <button type="button" onClick={addFinancialDetail} className="form-add-btn">
+            Add Financial Detail
+          </button>
+        </div>
+        
 
         );
       case 4:
         return (
+          
           <div className="form-content-references">
   <h2 className="form-title-references">References & Background Information</h2>
 
@@ -1033,11 +1427,12 @@ const MultiStepForm = () => {
     {formData.step5.references.map((reference, index) => (
       <div key={index} className="reference-entry">
         <label className="form-label-reference-name">
-          Name <span className="required">*</span>
+          Name
+           {/* Star next to the label */}
           <input
             type="text"
             value={reference.name}
-            onChange={(e) => handleReferenceChange(index, "name", e.target.value)}
+            onChange={(e) => handleReferenceChange(index, 'name', e.target.value)}
             placeholder="Enter name"
             className="form-input-reference-name"
           />
@@ -1047,11 +1442,13 @@ const MultiStepForm = () => {
         </label>
 
         <label className="form-label-reference-phone">
-          Phone <span className="required">*</span>
-          <input
-            type="text"
+          Phone 
+          
+          <InputMask
+            mask="(999) 999-9999"
+            maskChar={null}
             value={reference.phone}
-            onChange={(e) => handleReferenceChange(index, "phone", e.target.value)}
+            onChange={(e) => handleReferenceChange(index, 'phone', e.target.value)}
             placeholder="Enter phone number"
             className="form-input-reference-phone"
           />
@@ -1061,11 +1458,12 @@ const MultiStepForm = () => {
         </label>
 
         <label className="form-label-reference-relationship">
-          Relationship <span className="required">*</span>
+          Relationship 
+         
           <input
             type="text"
             value={reference.relationship}
-            onChange={(e) => handleReferenceChange(index, "relationship", e.target.value)}
+            onChange={(e) => handleReferenceChange(index, 'relationship', e.target.value)}
             placeholder="Enter relationship"
             className="form-input-reference-relationship"
           />
@@ -1087,11 +1485,7 @@ const MultiStepForm = () => {
       </div>
     ))}
     {/* Add Reference Button */}
-    <button
-      type="button"
-      onClick={addReference}
-      className="btn-add-reference"
-    >
+    <button type="button" onClick={addReference} className="btn-add-reference">
       Add Reference
     </button>
   </div>
@@ -1100,15 +1494,16 @@ const MultiStepForm = () => {
   <div className="background-info">
     {/* Late Rent Payment */}
     <label className="form-label-late-rent">
-      Have you ever been late or delinquent on rent? <span className="required">*</span>
+      Have you ever been late or delinquent on rent? 
+      <span className="required">*</span> {/* Star next to the label */}
       <div className="radio-group">
         <label>
           <input
             type="radio"
             name="lateRent"
             value="Yes"
-            checked={formData.step5.backgroundInfo.lateRent === "Yes"}
-            onChange={(e) => handleBackgroundChange("lateRent", e.target.value)}
+            checked={formData.step5.backgroundInfo.lateRent === 'Yes'}
+            onChange={(e) => handleBackgroundChange('lateRent', e.target.value)}
           />
           Yes
         </label>
@@ -1117,8 +1512,8 @@ const MultiStepForm = () => {
             type="radio"
             name="lateRent"
             value="No"
-            checked={formData.step5.backgroundInfo.lateRent === "No"}
-            onChange={(e) => handleBackgroundChange("lateRent", e.target.value)}
+            checked={formData.step5.backgroundInfo.lateRent === 'No'}
+            onChange={(e) => handleBackgroundChange('lateRent', e.target.value)}
           />
           No
         </label>
@@ -1128,15 +1523,16 @@ const MultiStepForm = () => {
 
     {/* Lawsuit History */}
     <label className="form-label-lawsuit">
-      Have you ever been party to a lawsuit? <span className="required">*</span>
+      Have you ever been party to a lawsuit? 
+      <span className="required">*</span> {/* Star next to the label */}
       <div className="radio-group">
         <label>
           <input
             type="radio"
             name="lawsuit"
             value="Yes"
-            checked={formData.step5.backgroundInfo.lawsuit === "Yes"}
-            onChange={(e) => handleBackgroundChange("lawsuit", e.target.value)}
+            checked={formData.step5.backgroundInfo.lawsuit === 'Yes'}
+            onChange={(e) => handleBackgroundChange('lawsuit', e.target.value)}
           />
           Yes
         </label>
@@ -1145,8 +1541,8 @@ const MultiStepForm = () => {
             type="radio"
             name="lawsuit"
             value="No"
-            checked={formData.step5.backgroundInfo.lawsuit === "No"}
-            onChange={(e) => handleBackgroundChange("lawsuit", e.target.value)}
+            checked={formData.step5.backgroundInfo.lawsuit === 'No'}
+            onChange={(e) => handleBackgroundChange('lawsuit', e.target.value)}
           />
           No
         </label>
@@ -1156,15 +1552,16 @@ const MultiStepForm = () => {
 
     {/* Smoking Status */}
     <label className="form-label-smoke">
-      Do you smoke? <span className="required">*</span>
+      Do you smoke? 
+      <span className="required">*</span> {/* Star next to the label */}
       <div className="radio-group">
         <label>
           <input
             type="radio"
             name="smoke"
             value="Yes"
-            checked={formData.step5.backgroundInfo.smoke === "Yes"}
-            onChange={(e) => handleBackgroundChange("smoke", e.target.value)}
+            checked={formData.step5.backgroundInfo.smoke === 'Yes'}
+            onChange={(e) => handleBackgroundChange('smoke', e.target.value)}
           />
           Yes
         </label>
@@ -1173,8 +1570,8 @@ const MultiStepForm = () => {
             type="radio"
             name="smoke"
             value="No"
-            checked={formData.step5.backgroundInfo.smoke === "No"}
-            onChange={(e) => handleBackgroundChange("smoke", e.target.value)}
+            checked={formData.step5.backgroundInfo.smoke === 'No'}
+            onChange={(e) => handleBackgroundChange('smoke', e.target.value)}
           />
           No
         </label>
@@ -1184,15 +1581,16 @@ const MultiStepForm = () => {
 
     {/* Pet Ownership */}
     <label className="form-label-pets">
-      Do you have any pets? <span className="required">*</span>
+      Do you have any pets? 
+      <span className="required">*</span> {/* Star next to the label */}
       <div className="radio-group">
         <label>
           <input
             type="radio"
             name="pets"
             value="Yes"
-            checked={formData.step5.backgroundInfo.pets === "Yes"}
-            onChange={(e) => handleBackgroundChange("pets", e.target.value)}
+            checked={formData.step5.backgroundInfo.pets === 'Yes'}
+            onChange={(e) => handleBackgroundChange('pets', e.target.value)}
           />
           Yes
         </label>
@@ -1201,8 +1599,8 @@ const MultiStepForm = () => {
             type="radio"
             name="pets"
             value="No"
-            checked={formData.step5.backgroundInfo.pets === "No"}
-            onChange={(e) => handleBackgroundChange("pets", e.target.value)}
+            checked={formData.step5.backgroundInfo.pets === 'No'}
+            onChange={(e) => handleBackgroundChange('pets', e.target.value)}
           />
           No
         </label>
@@ -1213,23 +1611,53 @@ const MultiStepForm = () => {
 </div>
 
 
+
         );
       case 5:
         return (
           <div className="form-content-final-comments">
-            <h2 className="form-title-final-comments">Final Details & Comments</h2>
-            <label htmlFor="comments" className="form-label-comments">
-              Additional Questions
-            </label>
-            <textarea
-              id="comments"
-              name="comments"
-              placeholder="Enter any additional information"
-              value={formData.step6.comments}
-              onChange={(e) => handleCommentsChange(e.target.value)}
-              className="form-textarea-comments"
-            ></textarea>
-          </div>
+          <h2 className="form-title-final-comments">Final Details & Comments</h2>
+          
+          {/* New Question 1 */}
+          <label htmlFor="moveReason" className="form-label-comments">
+            Why are you moving from your current address?
+          </label>
+          <textarea
+            id="moveReason"
+            name="moveReason"
+            placeholder="Enter the reason for moving"
+            value={formData.step6.moveReason}
+            onChange={(e) => handleMoveReasonChange(e.target.value)}
+            className="form-textarea-comments"
+          ></textarea>
+          
+          {/* New Question 2 */}
+          <label htmlFor="creditCheckComments" className="form-label-comments">
+            Is there anything negative in your credit or background check you want to comment on?
+          </label>
+          <textarea
+            id="creditCheckComments"
+            name="creditCheckComments"
+            placeholder="Enter comments about your credit or background check"
+            value={formData.step6.creditCheckComments}
+            onChange={(e) => handleCreditCheckCommentsChange(e.target.value)}
+            className="form-textarea-comments"
+          ></textarea>
+          
+          {/* Additional Questions Section */}
+          <label htmlFor="comments" className="form-label-comments">
+            Additional Questions
+          </label>
+          <textarea
+            id="comments"
+            name="comments"
+            placeholder="Enter any additional information"
+            value={formData.step6.comments}
+            onChange={(e) => handleCommentsChange(e.target.value)}
+            className="form-textarea-comments"
+          ></textarea>
+        </div>
+        
         );
 
       default:
@@ -1254,44 +1682,55 @@ const MultiStepForm = () => {
 
       {/* Form */}
      {/* Form */}
-     <form id="tenantForm" className="form-multi-step" onSubmit={handleSubmit}>
+     <form onSubmit={handleSubmit} id="tenantForm">
   <div className="form-step-content">{renderFormContent()}</div>
 
   <div className="form-navigation-multi-step">
     {currentStep > 0 && (
       <button
         type="button"
-        className="btn-prev-multi-step"
         onClick={() => updateStep(currentStep - 1)}
+        className="btn-prev-multi-step" // Add your custom class or Tailwind CSS here
       >
         Previous
       </button>
     )}
-    {currentStep < steps.length - 1 ? (
+
+    {currentStep < steps.length - 1 && (
       <button
-        type="button"
-        className="btn-next-multi-step"
-        onClick={() => {
-          const validations = [validate, validateCase1, validateCase2, validateCase3, validateCase4];
-          if (validations[currentStep]()) {
-            updateStep(currentStep + 1);
+      type="button"
+      className="btn-next-multi-step"
+      onClick={() => {
+        const validations = [validate, validateCase1, validateCase2, validateCase3, validateCase4];
+        if (validations[currentStep]()) {
+          updateStep(currentStep + 1);
+        } else {
+          alert("Please fill out all required fields correctly.");
+        }
+      }}
+    >
+      Next
+    </button>
+    )}
+
+    {currentStep === steps.length - 1 && (
+      <button
+        type="submit"
+        onClick={(e) => {
+          if (validate()) {
+            handleSubmit(e);
           } else {
-            alert("Please fill out all required fields correctly.");
+            e.preventDefault();
+            alert('Please fill out all required fields correctly.');
           }
         }}
+        className="btn-submit-multi-step" // Add your custom class or Tailwind CSS here
       >
-        Next
-      </button>
-    ) : (
-      <button type="submit" className="btn-submit-multi-step">
         Submit
       </button>
     )}
   </div>
 </form>
-
-
-
 
     </div>
   );
