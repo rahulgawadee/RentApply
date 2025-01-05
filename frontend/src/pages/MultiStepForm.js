@@ -322,7 +322,7 @@ const validateDates = (startDate, endDate) => {
 
   const [errors, setErrors] = useState({});
 
- const validate = () => {
+ const validatecase1 = () => {
     const newErrors = {};
     const { step1 } = formData;
   
