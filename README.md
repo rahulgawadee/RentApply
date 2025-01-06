@@ -24,4 +24,4 @@ RentApply is a web-based application that simplifies the process of applying for
    git clone https://github.com/your-username/RentApply.git
 Navigate to the project directory:
 
-Developed by Rahul Gawade
+Developed by Rahul Gawade and Vrushali More
